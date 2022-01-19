@@ -153,6 +153,9 @@ public:
   double* soilp;            // elm soil column hydraulic pressure, unit: Pa, 2-D (surf-grids, soil col. layers)
   double* wtd;              // elm soil column water table depth, unit: m, 1-D (surf-grids)
 
+  double* net_surface_grossflux;
+  double* root_waterextract;
+
   // PK container and factory
   Teuchos::RCP<Amanzi::PK> pk_;
 

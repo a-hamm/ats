@@ -614,38 +614,57 @@ void ats_elm_drv::bc_reset() {
 // reset ats source-sink terms (SS)
 void ats_elm_drv::ss_reset() {
 
-  //
+  //PKs
   Teuchos::RCP<Teuchos::ParameterList> pk_plist_ = Teuchos::sublist(parameter_list_, "PKs");
   Teuchos::RCP<Teuchos::ParameterList> flow_plist_ = Teuchos::sublist(pk_plist_, "flow");
-  std::string pk_name_ = "flow";
-  std::string pv_key = flow_plist_->get<std::string>("primary variable key");
-  std::cout<<"flow pv_key: "<< pv_key <<std::endl;
+  Teuchos::RCP<Teuchos::ParameterList> surfflow_plist_ = Teuchos::sublist(pk_plist_, "overland flow");
 
-  for (auto f_it = S_->field_begin(); f_it != S_->field_end(); ++f_it) {
-    std::string name(f_it->first);
-    std::cout<<"checking state field: " <<name <<std::endl;
+  // overland flow SS, e.g. rain/snow-melting/rain-throughfall, -soil evap. etc.
+  // NOTE: here all treated as potential
+  std::string pk_name = "overland flow";
+  if((surfflow_plist_->get<bool>("source term"))){
+    std::string ss_key = surfflow_plist_->get<std::string>("source key");
+    std::cout<<"--------------------------------------- "<<std::endl << pk_name  <<std::endl;
+    std::cout<<"source key: "<< ss_key <<std::endl;
+    if (S_->HasField(ss_key)){
+        std::cout << "data: " << *(S_->GetFieldData(ss_key)->ViewComponent("cell")) <<std::endl;
+
+		auto mesh_ = S_->GetMesh("surface");
+		int ncells = mesh_->num_entities(Amanzi::AmanziMesh::CELL, Amanzi::AmanziMesh::Parallel_type::OWNED);
+		auto &ss = *(S_->GetFieldData(ss_key)->ViewComponent("cell"));
+  		for (int c = 0; c < ncells; ++c) {
+  		  const auto& xyc = mesh_->cell_centroid(c);
+  	      std::cout <<"coords: "<<xyc<<" - "<<ss[0][c] << " - "<< net_surface_grossflux[c]<<std::endl;
+          ss[0][c] = net_surface_grossflux[c];
+  	    }
+		std::cout << "data: " << *(S_->GetFieldData(ss_key)->ViewComponent("cell")) <<std::endl;
+
+	  }
   }
 
-  if (S_->HasField(pv_key)){
-	Teuchos::RCP<Amanzi::Field> field = S_->GetField(pv_key, pk_name_);
-	std::cout <<"state field: "<< field->fieldname()<<" - type: "<< field->type()<<std::endl;
-    std::cout << "data: " << *(S_->GetFieldData(pv_key)->ViewComponent("cell")) <<std::endl;
+  //flow SS, e.g. root water extraction (i.e. transpiration)
+  pk_name = "flow";
+  if((flow_plist_->get<bool>("source term"))){
+    std::string ss2_key = flow_plist_->get<std::string>("source key");
+    std::cout<<"--------------------------------------- "<<std::endl << pk_name  <<std::endl;
+    std::cout<<"source key: "<< ss2_key <<std::endl;
 
-    auto mesh_ = S_->GetMesh("domain");
-    int ncells = mesh_->num_entities(Amanzi::AmanziMesh::CELL, Amanzi::AmanziMesh::Parallel_type::OWNED);
-    auto &pc = *(S_->GetFieldData(pv_key)->ViewComponent("cell"));
-    for (int c = 0; c < ncells; ++c) {
-      const auto& xyzc = mesh_->cell_centroid(c);
-      std::cout <<"coords: "<<xyzc<<" - "<<pc[0][c] << " - "<< soilp[c]<<std::endl;
-      //pc[0][c] = soilp[c];
+    if (S_->HasField(ss2_key)){
+  		auto mesh2_ = S_->GetMesh("domain");
+  		int ncells = mesh2_->num_entities(Amanzi::AmanziMesh::CELL, Amanzi::AmanziMesh::Parallel_type::OWNED);
+  		auto &ss2 = *(S_->GetFieldData(ss2_key)->ViewComponent("cell"));
+ 		std::cout << "data 2: " << *(S_->GetFieldData(ss2_key)->ViewComponent("cell")) <<std::endl;
+   		for (int c = 0; c < ncells; ++c) {
+  		  const auto& xyzc = mesh2_->cell_centroid(c);
+  	      std::cout <<"coords: "<<xyzc<<" - "<<ss2[0][c] << " - "<< root_waterextract[c]<<std::endl;
+  	      ss2[0][c] = root_waterextract[c];
+  	    }
+
+  		std::cout << "data 2: " << *(S_->GetFieldData(ss2_key)->ViewComponent("cell")) <<std::endl;
     }
-
-    std::cout << "data 2: " << *(S_->GetFieldData(pv_key)->ViewComponent("cell")) <<std::endl;
-
   }
 
 }
-
 
 // -----------------------------------------------------------------------------
 // ONE single ELM-timestep
